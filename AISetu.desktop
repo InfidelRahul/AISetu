@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=AISetu
+Comment=Local gateway from IDE to web AI chat
+Exec=node /home/user/AISetu/src/index.js
+Path=/home/user/AISetu
+Terminal=false
+Type=Application
+Categories=Development;

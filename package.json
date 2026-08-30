@@ -1,0 +1,37 @@
+{
+  "name": "aisetu",
+  "productName": "AISetu",
+  "version": "1.0.0",
+  "description": "AISetu — React Native app for Windows, macOS, Linux, and Android",
+  "type": "module",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "build": "bash ./build.sh",
+    "web": "vite --host 0.0.0.0",
+    "build:web": "vite build",
+    "desktop": "npm run build:web && electron desktop/main.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "prebuild:android": "npx expo prebuild --platform android",
+    "dist:win": "npm run build:web && electron-builder --win",
+    "dist:mac": "npm run build:web && electron-builder --mac",
+    "dist:linux": "npm run build:web && electron-builder --linux",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "babel-preset-expo": "^11.0.15",
+    "expo": "^51.0.39",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-native": "^0.74.5",
+    "react-native-web": "^0.19.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

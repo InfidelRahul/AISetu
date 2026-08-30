@@ -1,0 +1,16 @@
+node_modules/
+data/
+logs/
+*.log
+.DS_Store
+dist/
+build/
+.dart_tool/
+.idea/
+.expo/
+android/
+ios/
+windows/
+macos/
+release/
+app/dist/

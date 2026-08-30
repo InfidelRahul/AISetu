@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "AISetu",
+    "slug": "aisetu",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android", "web"],
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.aisetu.gateway",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "app.aisetu.gateway",
+      "adaptiveIcon": {
+        "backgroundColor": "#1b1814"
+      },
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./ui/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "aisetu-local"
+      }
+    }
+  }
+}

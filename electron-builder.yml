@@ -1,0 +1,23 @@
+appId: app.aisetu.gateway
+productName: AISetu
+files:
+  - app/dist/**/*
+  - app/**/*.js
+  - app/**/*.jsx
+  - src/**/*
+  - desktop/**/*
+  - package.json
+extraMetadata:
+  main: desktop/main.js
+directories:
+  output: release
+win:
+  target: nsis
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
