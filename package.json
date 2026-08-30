@@ -3,6 +3,10 @@
   "productName": "AISetu",
   "version": "1.0.0",
   "description": "AISetu — React Native app for Windows, macOS, Linux, and Android",
+  "author": {
+    "name": "InfidelRahul",
+    "email": "rahulkmofficial@gmail.com"
+  },
   "type": "module",
   "main": "desktop/main.js",
   "scripts": {
