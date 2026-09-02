@@ -1,0 +1,32 @@
+[package]
+name = "aisetu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "AISetu — provider-independent AI conversation bridge"
+rust-version.workspace = true
+default-run = "aisetu"
+
+[[bin]]
+name = "aisetu"
+path = "src/main.rs"
+
+[dependencies]
+aisetu-api = { workspace = true }
+aisetu-browser = { workspace = true }
+aisetu-core = { workspace = true }
+aisetu-provider = { workspace = true }
+aisetu-session = { workspace = true }
+aisetu-transport = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+aisetu-conversation = { workspace = true }
+aisetu-engine = { workspace = true }
+aisetu-intelligence = { workspace = true }
+axum = { workspace = true }
+serde_json = { workspace = true }
+tower = { workspace = true }

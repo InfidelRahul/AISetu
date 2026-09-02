@@ -1,0 +1,13 @@
+[build]
+rustflags = []
+
+[target.x86_64-unknown-linux-gnu]
+linker = "cc"
+
+[target.aarch64-unknown-linux-gnu]
+# Cross-compile with: cargo build --release --target aarch64-unknown-linux-gnu
+
+[alias]
+ci = "clippy --workspace --all-targets -- -D warnings"
+lint = "clippy --workspace --all-targets -- -D warnings"
+fmtcheck = "fmt --all -- --check"
