@@ -1,0 +1,25 @@
+[package]
+name = "aisetu-provider"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Provider adapters, capabilities, routing, and error normalization"
+rust-version.workspace = true
+
+[dependencies]
+aisetu-core = { workspace = true }
+aisetu-conversation = { workspace = true }
+aisetu-engine = { workspace = true }
+aisetu-intelligence = { workspace = true }
+aisetu-session = { workspace = true }
+aisetu-transport = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "0.6"

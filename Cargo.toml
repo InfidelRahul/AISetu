@@ -1,0 +1,85 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aisetu-core",
+    "crates/aisetu-transport",
+    "crates/aisetu-conversation",
+    "crates/aisetu-engine",
+    "crates/aisetu-intelligence",
+    "crates/aisetu-provider",
+    "crates/aisetu-session",
+    "crates/aisetu-browser",
+    "crates/aisetu-api",
+    "crates/aisetu",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["AISetu Contributors"]
+description = "AISetu — a provider-independent AI conversation bridge"
+rust-version = "1.75"
+repository = "https://github.com/aisetu/aisetu"
+
+[workspace.dependencies]
+aisetu-core = { path = "crates/aisetu-core" }
+aisetu-transport = { path = "crates/aisetu-transport" }
+aisetu-conversation = { path = "crates/aisetu-conversation" }
+aisetu-engine = { path = "crates/aisetu-engine" }
+aisetu-intelligence = { path = "crates/aisetu-intelligence" }
+aisetu-provider = { path = "crates/aisetu-provider" }
+aisetu-session = { path = "crates/aisetu-session" }
+aisetu-browser = { path = "crates/aisetu-browser" }
+aisetu-api = { path = "crates/aisetu-api" }
+
+tokio = { version = "1.43", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal", "fs"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "cookies", "gzip", "stream"] }
+axum = { version = "0.8", features = ["json", "macros"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tower = { version = "0.5", features = ["limit", "timeout", "util"] }
+tower-http = { version = "0.6", features = ["trace", "timeout", "limit", "cors", "request-id"] }
+hyper = { version = "1.6", features = ["server", "http1"] }
+http = "1.2"
+http-body-util = "0.1"
+bytes = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+uuid = { version = "1.13", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
+async-trait = "0.1"
+cookie = "0.18"
+url = "2.5"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+dirs = "6.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+futures = "0.3"
+tokio-stream = "0.1"
+pin-project-lite = "0.2"
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.9"
+base64 = "0.22"
+parking_lot = "0.12"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+opt-level = 3
+
+[profile.release-fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+strip = "none"
+
+[profile.dev]
+opt-level = 0
+debug = 1
