@@ -209,9 +209,26 @@ impl SetuError {
         Self::new(ErrorKind::Validation, message)
     }
 
-    /// Safe message for API clients; never includes session/credential text.
+    /// Stable message for API clients. Internal/provider details remain in `message`/`source_detail`.
     pub fn client_message(&self) -> &str {
-        &self.message
+        match self.kind {
+            ErrorKind::Authentication => "authentication failed",
+            ErrorKind::Authorization => "not authorized",
+            ErrorKind::RateLimited => "rate limit exceeded",
+            ErrorKind::Timeout => "upstream request timed out",
+            ErrorKind::Network => "upstream network error",
+            ErrorKind::InvalidRequest | ErrorKind::Validation => &self.message,
+            ErrorKind::ProviderFailure => "upstream provider failed",
+            ErrorKind::SessionExpired => "provider session expired",
+            ErrorKind::ParseFailure => "invalid upstream response",
+            ErrorKind::NotFound => &self.message,
+            ErrorKind::Conflict => &self.message,
+            ErrorKind::Internal => "internal server error",
+            ErrorKind::Unavailable => "service unavailable",
+            ErrorKind::Cancelled => "request cancelled",
+            ErrorKind::ResourceExhausted => "resource limit exceeded",
+            ErrorKind::Configuration => "service configuration error",
+        }
     }
 }
 
@@ -240,6 +257,6 @@ mod tests {
         assert_eq!(err.provider.as_deref(), Some("mock"));
         assert_eq!(err.request_id.as_deref(), Some("req-1"));
         assert_eq!(err.retry_after_ms, Some(250));
-        assert_eq!(err.client_message(), "upstream timed out");
+        assert_eq!(err.client_message(), "upstream request timed out");
     }
 }

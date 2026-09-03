@@ -352,37 +352,12 @@ impl AppConfig {
         if self.server.bind.trim().is_empty() {
             return Err(ConfigError::Invalid("server.bind must not be empty".into()));
         }
+        if self.server.api_key.as_deref().is_some_and(|k| k.len() < 16) {
+            return Err(ConfigError::Invalid("server.api_key must be at least 16 characters".into()));
+        }
         if self.transport.timeout_ms == 0 {
-            return Err(ConfigError::Invalid(
-                "transport.timeout_ms must be > 0".into(),
-            ));
+            return Err(ConfigError::Invalid("transport.timeout_ms must be > 0".into()));
         }
-        for p in &self.providers {
-            if p.name.trim().is_empty() {
-                return Err(ConfigError::Invalid(
-                    "provider name must not be empty".into(),
-                ));
-            }
-            if p.kind.trim().is_empty() {
-                return Err(ConfigError::Invalid(format!(
-                    "provider '{}' kind must not be empty",
-                    p.name
-                )));
-            }
-        }
-        for m in &self.models {
-            if m.id.trim().is_empty() {
-                return Err(ConfigError::Invalid("model id must not be empty".into()));
-            }
-            if !self.providers.iter().any(|p| p.name == m.provider) {
-                return Err(ConfigError::Invalid(format!(
-                    "model '{}' references unknown provider '{}'",
-                    m.id, m.provider
-                )));
-            }
-        }
-        Ok(())
-    
         if self.transport.connect_timeout_ms == 0 {
             return Err(ConfigError::Invalid("connect_timeout_ms must be greater than zero".into()));
         }
@@ -392,7 +367,7 @@ impl AppConfig {
         if !is_loopback_bind(&self.server.bind) && self.server.api_key.as_deref().unwrap_or("").is_empty() {
             return Err(ConfigError::Invalid("api_key is required when binding to a non-loopback address".into()));
         }
-        let supported = ["mock", "echo", "http", "http_json"];
+        let supported = ["mock", "echo", "http", "http_json", "openai_compatible"];
         let mut providers = std::collections::HashSet::new();
         for provider in &self.providers {
             if provider.name.trim().is_empty() {
@@ -404,7 +379,7 @@ impl AppConfig {
             if !providers.insert(provider.name.as_str()) {
                 return Err(ConfigError::Invalid(format!("duplicate provider: {}", provider.name)));
             }
-            if provider.enabled && matches!(provider.kind.as_str(), "http" | "http_json") {
+            if provider.enabled && matches!(provider.kind.as_str(), "http" | "http_json" | "openai_compatible") {
                 let raw = provider.base_url.as_deref().ok_or_else(|| ConfigError::Invalid(format!("provider {} requires base_url", provider.name)))?;
                 let parsed = url::Url::parse(raw).map_err(|_| ConfigError::Invalid(format!("invalid base_url for provider {}", provider.name)))?;
                 if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {

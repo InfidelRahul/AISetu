@@ -9,7 +9,7 @@ use aisetu_api::{serve, AppState};
 use aisetu_browser::{transfer_to_manager, BrowserPlugin, HeadlessScriptBrowser, SessionCapture};
 use aisetu_core::{init_tracing, AppConfig, Shutdown};
 use aisetu_provider::{
-    EchoProvider, HttpJsonProvider, MockProvider, ModelRegistry, ProviderRegistry, Router,
+    EchoProvider, HttpJsonProvider, MockProvider, OpenAiCompatibleProvider, ModelRegistry, ProviderRegistry, Router,
 };
 use aisetu_session::{FileSessionStore, SecretStore, SessionManager};
 use aisetu_transport::HttpTransport;
@@ -198,6 +198,19 @@ fn build_state(config: AppConfig) -> aisetu_core::Result<AppState> {
                 let mut p = HttpJsonProvider::new(entry.name.clone(), base, transport.clone());
                 if let Some(model) = &entry.model {
                     p = p.with_model(model.clone());
+                }
+                providers.register(Arc::new(p));
+            }
+            "openai_compatible" => {
+                if !entry.enabled { continue; }
+                let base = entry.base_url.clone().ok_or_else(|| {
+                    aisetu_core::SetuError::configuration(format!(
+                        "provider '{}' requires base_url", entry.name
+                    ))
+                })?;
+                let mut p = OpenAiCompatibleProvider::new(entry.name.clone(), base, transport.clone());
+                if let Ok(key_name) = std::env::var(format!("AISETU_PROVIDER_{}_API_KEY", entry.name.to_ascii_uppercase().replace('-', "_"))) {
+                    if !key_name.is_empty() { p = p.with_api_key(key_name); }
                 }
                 providers.register(Arc::new(p));
             }

@@ -3,6 +3,7 @@
 use aisetu_conversation::{ConversationRequest, ConversationResponse};
 use aisetu_session::Session;
 use async_trait::async_trait;
+use futures::stream::BoxStream;
 
 use crate::capabilities::ProviderCapabilities;
 
@@ -39,6 +40,19 @@ pub trait Provider: Send + Sync {
         request: ConversationRequest,
         session: Option<&Session>,
     ) -> aisetu_core::Result<ConversationResponse>;
+
+    /// Streaming provider output. Providers with native streaming should override this.
+    /// The default implementation preserves API compatibility by yielding the completed
+    /// response as one delta.
+    async fn stream(
+        &self,
+        request: ConversationRequest,
+        session: Option<&Session>,
+    ) -> aisetu_core::Result<BoxStream<'static, aisetu_core::Result<String>>> {
+        let response = self.complete(request, session).await?;
+        let text = response.text().to_string();
+        Ok(Box::pin(futures::stream::once(async move { Ok(text) })))
+    }
 }
 
 #[cfg(test)]

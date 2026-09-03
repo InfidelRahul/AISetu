@@ -41,6 +41,11 @@ impl ProviderCapabilities {
         Self::default()
     }
 
+    pub fn with_system_messages(mut self) -> Self {
+        self.system_messages = true;
+        self
+    }
+
     pub fn with_streaming(mut self) -> Self {
         self.streaming = true;
         self

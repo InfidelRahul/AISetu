@@ -56,3 +56,16 @@ upstream_model = "mock-text"
 id = "aisetu-echo"
 provider = "echo"
 upstream_model = "echo-text"
+
+# Example documented OpenAI-compatible upstream.
+# Set the key with AISETU_PROVIDER_UPSTREAM_API_KEY.
+# [[providers]]
+# name = "upstream"
+# kind = "openai_compatible"
+# base_url = "https://api.example.com/v1"
+# enabled = true
+#
+# [[models]]
+# id = "upstream-model"
+# provider = "upstream"
+# upstream_model = "model-id"

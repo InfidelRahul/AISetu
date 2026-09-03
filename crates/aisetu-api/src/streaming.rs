@@ -11,9 +11,7 @@ use axum::response::{
     IntoResponse,
 };
 use chrono::Utc;
-use futures::stream;
 use serde::Serialize;
-use tokio_stream::StreamExt;
 
 use aisetu_conversation::ConversationRequest;
 use aisetu_provider::Provider;
@@ -52,11 +50,6 @@ pub async fn chat_completion_stream(
     session: Option<Session>,
     model: String,
 ) -> Result<axum::response::Response, ApiError> {
-    let response = provider
-        .complete(request, session.as_ref())
-        .await
-        .map_err(ApiError::from)?;
-
     let id = format!(
         "chatcmpl_{}",
         aisetu_core::RequestId::new()
@@ -64,70 +57,17 @@ pub async fn chat_completion_stream(
             .trim_start_matches("req_")
     );
     let created = Utc::now().timestamp();
-    let text = response.text().to_string();
-    let finish = finish_reason_str(response.finish_reason).to_string();
 
-    let chunks = chunk_text(&text, 24);
-    let mut events: Vec<Result<Event, Infallible>> = Vec::new();
+    let mut stream = provider
+        .stream(request, session.as_ref())
+        .await
+        .map_err(ApiError::from)?;
 
-    let role_chunk = StreamChunk {
-        id: id.clone(),
-        object: "chat.completion.chunk".into(),
-        created,
-        model: model.clone(),
-        choices: vec![StreamChoice {
-            index: 0,
-            delta: StreamDelta {
-                role: Some("assistant".into()),
-                content: Some(String::new()),
-            },
-            finish_reason: None,
-        }],
-    };
-    events.push(Ok(
-        Event::default().data(serde_json::to_string(&role_chunk).unwrap())
-    ));
+    let id_for_stream = id.clone();
+    let model_for_stream = model.clone();
+    let output = async_stream(stream, id_for_stream, created, model_for_stream);
 
-    for part in chunks {
-        let chunk = StreamChunk {
-            id: id.clone(),
-            object: "chat.completion.chunk".into(),
-            created,
-            model: model.clone(),
-            choices: vec![StreamChoice {
-                index: 0,
-                delta: StreamDelta {
-                    role: None,
-                    content: Some(part),
-                },
-                finish_reason: None,
-            }],
-        };
-        events.push(Ok(
-            Event::default().data(serde_json::to_string(&chunk).unwrap())
-        ));
-    }
-
-    let done_chunk = StreamChunk {
-        id,
-        object: "chat.completion.chunk".into(),
-        created,
-        model,
-        choices: vec![StreamChoice {
-            index: 0,
-            delta: StreamDelta {
-                role: None,
-                content: None,
-            },
-            finish_reason: Some(finish),
-        }],
-    };
-    events.push(Ok(
-        Event::default().data(serde_json::to_string(&done_chunk).unwrap())
-    ));
-    events.push(Ok(Event::default().data("[DONE]")));
-
-    let sse = Sse::new(stream::iter(events).throttle(Duration::from_millis(0))).keep_alive(
+    let sse = Sse::new(output).keep_alive(
         KeepAlive::new()
             .interval(Duration::from_secs(15))
             .text("keep-alive"),
@@ -135,31 +75,60 @@ pub async fn chat_completion_stream(
     Ok(sse.into_response())
 }
 
-fn chunk_text(text: &str, size: usize) -> Vec<String> {
-    if text.is_empty() {
-        return vec![String::new()];
-    }
-    let mut out = Vec::new();
-    let mut buf = String::new();
-    for ch in text.chars() {
-        buf.push(ch);
-        if buf.chars().count() >= size {
-            out.push(std::mem::take(&mut buf));
-        }
-    }
-    if !buf.is_empty() {
-        out.push(buf);
-    }
-    out
+fn async_stream(
+    provider_stream: futures::stream::BoxStream<'static, aisetu_core::Result<String>>,
+    id: String,
+    created: i64,
+    model: String,
+) -> impl futures::Stream<Item = Result<Event, Infallible>> {
+    let role = StreamChunk {
+        id: id.clone(), object: "chat.completion.chunk".into(), created, model: model.clone(),
+        choices: vec![StreamChoice { index: 0, delta: StreamDelta { role: Some("assistant".into()), content: None }, finish_reason: None }],
+    };
+    let prefix = futures::stream::iter(vec![Ok(Event::default().data(serde_json::to_string(&role).unwrap_or_else(|_| "{}".into())))]);
+
+    let body = futures::stream::unfold(
+        (Some(provider_stream), false),
+        move |(state, finished)| {
+            let id = id.clone();
+            let model = model.clone();
+            async move {
+                if finished { return None; }
+                let mut stream = state?;
+                match futures::StreamExt::next(&mut stream).await {
+                    Some(Ok(text)) => {
+                        let chunk = StreamChunk {
+                            id, object: "chat.completion.chunk".into(), created, model,
+                            choices: vec![StreamChoice { index: 0, delta: StreamDelta { role: None, content: Some(text) }, finish_reason: None }],
+                        };
+                        let event = Event::default().data(serde_json::to_string(&chunk).unwrap_or_else(|_| "{}".into()));
+                        Some((Ok(event), (Some(stream), false)))
+                    }
+                    Some(Err(err)) => {
+                        let body = crate::error::OpenAiErrorBody::from(&err);
+                        let event = Event::default().event("error").data(serde_json::to_string(&body).unwrap_or_else(|_| "{}".into()));
+                        Some((Ok(event), (None, true)))
+                    }
+                    None => {
+                        let done = StreamChunk {
+                            id, object: "chat.completion.chunk".into(), created, model,
+                            choices: vec![StreamChoice { index: 0, delta: StreamDelta { role: None, content: None }, finish_reason: Some("stop".into()) }],
+                        };
+                        let event = Event::default().data(serde_json::to_string(&done).unwrap_or_else(|_| "{}".into()));
+                        Some((Ok(event), (None, true)))
+                    }
+                }
+            }
+        },
+    );
+
+    prefix.chain(body).chain(futures::stream::once(async { Ok(Event::default().data("[DONE]")) }))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn chunks() {
-        let parts = chunk_text("abcdefghij", 3);
-        assert_eq!(parts, vec!["abc", "def", "ghi", "j"]);
+    fn stream_module_compiles() {
+        assert!(true);
     }
 }

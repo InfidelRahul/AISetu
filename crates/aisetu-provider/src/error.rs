@@ -50,9 +50,9 @@ pub fn normalize_http_error(provider: &str, response: &HttpResponse) -> SetuErro
         _ => ErrorKind::ProviderFailure,
     };
 
-    let mut err = SetuError::new(kind, message)
+    let mut err = SetuError::new(kind, message.clone())
         .with_provider(provider)
-        .with_source(format!("http {status}"));
+        .with_source(format!("http {status}; upstream_message={message}"));
 
     if kind == ErrorKind::RateLimited {
         if let Some(retry) = parse_retry_after(response) {

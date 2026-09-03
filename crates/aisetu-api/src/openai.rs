@@ -64,9 +64,13 @@ pub struct ChatCompletionRequest {
     #[serde(default)]
     pub max_tokens: Option<u32>,
     #[serde(default)]
+    pub max_completion_tokens: Option<u32>,
+    #[serde(default)]
     pub stream: bool,
     #[serde(default)]
     pub stop: Option<Vec<String>>,
+    #[serde(default)]
+    pub user: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +111,21 @@ pub async fn chat_completions(
             state.config.limits.max_messages
         ))));
     }
+    if body.temperature.is_some_and(|t| !t.is_finite() || !(0.0..=2.0).contains(&t)) {
+        return Err(ApiError(SetuError::invalid_request(
+            "temperature must be a finite value between 0 and 2",
+        )));
+    }
+    if body.max_tokens.or(body.max_completion_tokens).is_some_and(|n| n == 0) {
+        return Err(ApiError(SetuError::invalid_request(
+            "max_tokens must be greater than zero",
+        )));
+    }
+    if body.stop.as_ref().is_some_and(|s| s.len() > 16 || s.iter().any(|x| x.len() > 256)) {
+        return Err(ApiError(SetuError::invalid_request(
+            "stop may contain at most 16 strings of 256 bytes each",
+        )));
+    }
 
     let conversation = openai_to_conversation(&body)?;
     conversation.validate().map_err(ApiError::from)?;
@@ -114,7 +133,7 @@ pub async fn chat_completions(
     let mut request = ConversationRequest::new(conversation);
     request.model = Some(body.model.clone());
     request.temperature = body.temperature;
-    request.max_tokens = body.max_tokens;
+    request.max_tokens = body.max_completion_tokens.or(body.max_tokens);
     request.stop = body.stop.clone().unwrap_or_default();
     request.stream = body.stream;
     request.validate().map_err(ApiError::from)?;
@@ -197,6 +216,9 @@ pub async fn chat_completions(
 }
 
 pub fn openai_to_conversation(body: &ChatCompletionRequest) -> Result<Conversation, ApiError> {
+    if body.model.trim().is_empty() {
+        return Err(ApiError(SetuError::invalid_request("model must not be empty")));
+    }
     if body.messages.is_empty() {
         return Err(ApiError(SetuError::invalid_request(
             "messages must not be empty",
@@ -253,8 +275,10 @@ mod tests {
             ],
             temperature: None,
             max_tokens: None,
+            max_completion_tokens: None,
             stream: false,
             stop: None,
+            user: None,
         };
         let c = openai_to_conversation(&body).unwrap();
         assert_eq!(c.len(), 2);
@@ -271,8 +295,10 @@ mod tests {
             }],
             temperature: None,
             max_tokens: None,
+            max_completion_tokens: None,
             stream: false,
             stop: None,
+            user: None,
         };
         assert!(openai_to_conversation(&body).is_err());
     }
