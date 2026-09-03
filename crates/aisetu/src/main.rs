@@ -137,7 +137,7 @@ async fn cmd_login(
         Ok(cap)
     });
     let captured = browser
-        .authenticate(&url, &provider, &SessionCapture::permissive())
+        .authenticate(&url, &provider, &SessionCapture::allow_cookies(&["sid", "session", "sessionid", "auth"]))
         .await?;
     if captured.cookies.is_empty() && captured.headers.is_empty() {
         return Err(aisetu_core::SetuError::authentication(

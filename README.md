@@ -83,7 +83,7 @@ curl -s http://127.0.0.1:8080/v1/chat/completions \
 | `aisetu-transport` | Generic HTTP transport |
 | `aisetu-conversation` | Canonical conversation model |
 | `aisetu-engine` | Translation / extract / normalize / validate |
-| `aisetu-intelligence` | IntelligenceEngine + Needle |
+| `aisetu-intelligence` | IntelligenceEngine + deterministic extraction (not Cactus Needle 2) |
 | `aisetu-provider` | Adapters, capabilities, routing, reliability |
 | `aisetu-session` | Session lifecycle and secret storage |
 | `aisetu-browser` | Replaceable authentication bridge |

@@ -1,9 +1,10 @@
 //! HTTP transport client.
 
-use std::time::{Duration, Instant};
+use std::{sync::Arc, time::{Duration, Instant}};
 
 use aisetu_core::{config::TransportConfig, SetuError};
 use async_trait::async_trait;
+use tokio::sync::Semaphore;
 use tracing::{debug, info_span, Instrument};
 
 use crate::{
@@ -23,22 +24,34 @@ pub struct HttpTransport {
     client: reqwest::Client,
     default_timeout: Duration,
     max_response_bytes: usize,
+    connection_limit: Arc<Semaphore>,
 }
 
 impl HttpTransport {
     pub fn new(config: &TransportConfig) -> aisetu_core::Result<Self> {
-        Self::with_limits(config, 8 * 1024 * 1024)
+        Self::with_limits_and_connections(config, 8 * 1024 * 1024, 64)
     }
 
     pub fn with_limits(
         config: &TransportConfig,
         max_response_bytes: usize,
     ) -> aisetu_core::Result<Self> {
+        Self::with_limits_and_connections(config, max_response_bytes, 64)
+    }
+
+    pub fn with_limits_and_connections(
+        config: &TransportConfig,
+        max_response_bytes: usize,
+        max_connections: usize,
+    ) -> aisetu_core::Result<Self> {
+        if max_connections == 0 {
+            return Err(SetuError::configuration("max_connections must be greater than zero"));
+        }
         let mut builder = reqwest::Client::builder()
             .user_agent(&config.user_agent)
             .timeout(Duration::from_millis(config.timeout_ms))
             .connect_timeout(Duration::from_millis(config.connect_timeout_ms))
-            .redirect(reqwest::redirect::Policy::limited(config.max_redirects))
+            .redirect(build_redirect_policy(config.max_redirects))
             .gzip(true);
 
         if !config.tls_verify {
@@ -53,6 +66,7 @@ impl HttpTransport {
             client,
             default_timeout: Duration::from_millis(config.timeout_ms),
             max_response_bytes,
+            connection_limit: Arc::new(Semaphore::new(max_connections)),
         })
     }
 
@@ -61,6 +75,7 @@ impl HttpTransport {
             client,
             default_timeout: Duration::from_secs(60),
             max_response_bytes: 8 * 1024 * 1024,
+            connection_limit: Arc::new(Semaphore::new(64)),
         }
     }
 }
@@ -82,6 +97,7 @@ impl Transport for HttpTransport {
 
 impl HttpTransport {
     async fn execute_inner(&self, request: HttpRequest) -> aisetu_core::Result<HttpResponse> {
+        let _permit = self.connection_limit.acquire().await.map_err(|_| SetuError::internal("HTTP connection limiter closed"))?;
         let current = tracing::Span::current();
         if let Ok(parsed) = url::Url::parse(&request.url) {
             if let Some(host) = parsed.host_str() {
@@ -125,13 +141,15 @@ impl HttpTransport {
             headers.append(name.as_str().to_string(), v);
         }
 
-        let bytes = response.bytes().await.map_err(map_reqwest_error)?;
-        if bytes.len() > self.max_response_bytes {
-            return Err(SetuError::resource_exhausted(format!(
-                "response body {} bytes exceeds limit {}",
-                bytes.len(),
-                self.max_response_bytes
-            )));
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(map_reqwest_error)? {
+            if bytes.len().saturating_add(chunk.len()) > self.max_response_bytes {
+                return Err(SetuError::resource_exhausted(format!(
+                    "response body exceeds limit {} bytes",
+                    self.max_response_bytes
+                )));
+            }
+            bytes.extend_from_slice(&chunk);
         }
 
         let elapsed_ms = started.elapsed().as_millis() as u64;
@@ -153,6 +171,26 @@ impl HttpTransport {
             url: final_url,
         })
     }
+}
+
+fn build_redirect_policy(max_redirects: usize) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= max_redirects {
+            return attempt.stop();
+        }
+        let Some(previous) = attempt.previous().last() else {
+            return attempt.follow();
+        };
+        let same_scheme = previous.scheme() == attempt.url().scheme();
+        let same_host = previous.host() == attempt.url().host();
+        let same_port = previous.port_or_known_default() == attempt.url().port_or_known_default();
+        let downgrade = previous.scheme() == "https" && attempt.url().scheme() == "http";
+        if same_scheme && same_host && same_port && !downgrade {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    })
 }
 
 fn map_method(method: Method) -> reqwest::Method {

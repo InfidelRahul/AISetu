@@ -8,6 +8,6 @@ pub mod schema;
 pub mod types;
 
 pub use engine::{DeterministicEngine, IntelligenceEngine};
-pub use needle::NeedleEngine;
+pub use needle::{DeterministicIntelligenceEngine, NeedleEngine};
 pub use schema::JsonSchema;
 pub use types::{IntelligenceContext, IntelligenceInput, IntelligenceOutput};

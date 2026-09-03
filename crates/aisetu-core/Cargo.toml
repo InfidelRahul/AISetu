@@ -21,3 +21,5 @@ zeroize = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.16"
+
+url.workspace = true

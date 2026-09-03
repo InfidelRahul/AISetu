@@ -1,6 +1,7 @@
-//! Needle: embedded local intelligence for extracting structured data from text.
+//! Deterministic local intelligence for extracting structured data from text.
 //!
-//! Needle is a small, deterministic extractor. It does not call remote models.
+//! This module is not Cactus Needle 2. It is a small deterministic extractor; the real
+//! Needle 2 runtime must be integrated behind the same IntelligenceEngine abstraction.
 //! It walks the input looking for JSON objects that satisfy the schema, and
 //! falls back to key=value / labeled-line heuristics.
 
@@ -14,11 +15,11 @@ use crate::{
 };
 
 /// Local structured-intelligence implementation.
-pub struct NeedleEngine {
+pub struct DeterministicIntelligenceEngine {
     pub min_confidence: f32,
 }
 
-impl Default for NeedleEngine {
+impl Default for DeterministicIntelligenceEngine {
     fn default() -> Self {
         Self {
             min_confidence: 0.5,
@@ -26,7 +27,7 @@ impl Default for NeedleEngine {
     }
 }
 
-impl NeedleEngine {
+impl DeterministicIntelligenceEngine {
     pub fn new() -> Self {
         Self::default()
     }
@@ -41,15 +42,15 @@ impl NeedleEngine {
             }
         }
         Err(aisetu_core::SetuError::parse_failure(
-            "needle could not extract a value matching the schema",
+            "deterministic extractor could not extract a value matching the schema",
         ))
     }
 }
 
 #[async_trait]
-impl IntelligenceEngine for NeedleEngine {
+impl IntelligenceEngine for DeterministicIntelligenceEngine {
     fn name(&self) -> &'static str {
-        "needle"
+        "deterministic"
     }
 
     async fn infer(
@@ -63,14 +64,17 @@ impl IntelligenceEngine for NeedleEngine {
         schema.validate(&value)?;
         if confidence < self.min_confidence {
             return Err(aisetu_core::SetuError::validation(format!(
-                "needle confidence {confidence:.2} below threshold {:.2}",
+                "deterministic confidence {confidence:.2} below threshold {:.2}",
                 self.min_confidence
             )));
         }
-        tracing::debug!(confidence, "needle extracted structured value");
+        tracing::debug!(confidence, "deterministic extractor produced structured value");
         Ok(IntelligenceOutput::new(value, confidence, self.name()))
     }
 }
+
+/// Backwards-compatible name for the deterministic extractor. This is NOT Cactus Needle 2.
+pub type NeedleEngine = DeterministicIntelligenceEngine;
 
 fn extract_embedded_json(text: &str, schema: &JsonSchema) -> Option<(Value, f32)> {
     let trimmed = text.trim();
@@ -171,7 +175,7 @@ mod tests {
 
     #[tokio::test]
     async fn extracts_embedded_json() {
-        let engine = NeedleEngine::new();
+        let engine = DeterministicIntelligenceEngine::new();
         let out = engine
             .infer(
                 &IntelligenceInput::new("noise {\"name\":\"Ada\",\"age\":36} trailing"),
@@ -183,12 +187,12 @@ mod tests {
         assert_eq!(out.value["name"], "Ada");
         assert_eq!(out.value["age"], 36);
         assert!(out.confidence >= 0.9);
-        assert_eq!(out.engine, "needle");
+        assert_eq!(out.engine, "deterministic");
     }
 
     #[tokio::test]
     async fn extracts_labeled_fields() {
-        let engine = NeedleEngine::new();
+        let engine = DeterministicIntelligenceEngine::new();
         let out = engine
             .infer(
                 &IntelligenceInput::new("name: Grace\nage: 85"),
@@ -204,7 +208,7 @@ mod tests {
 
     #[tokio::test]
     async fn fails_when_nothing_matches() {
-        let engine = NeedleEngine::new();
+        let engine = DeterministicIntelligenceEngine::new();
         let err = engine
             .infer(
                 &IntelligenceInput::new("nothing useful here"),

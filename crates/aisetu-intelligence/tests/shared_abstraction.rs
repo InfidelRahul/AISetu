@@ -30,5 +30,5 @@ async fn both_engines_same_contract() {
     assert!(run(&det, r#"{"ok": true}"#).await.unwrap());
     assert!(run(&needle, r#"prefix {"ok": true} suffix"#).await.unwrap());
     assert_eq!(det.name(), "deterministic");
-    assert_eq!(needle.name(), "needle");
+    assert_eq!(needle.name(), "deterministic");
 }

@@ -117,6 +117,9 @@ pub struct TransportConfig {
     pub user_agent: String,
     #[serde(default = "default_max_redirects")]
     pub max_redirects: usize,
+    /// Permit disabling TLS certificate verification. This must be explicitly enabled.
+    #[serde(default)]
+    pub allow_insecure_tls: bool,
 }
 
 fn default_timeout() -> u64 {
@@ -139,6 +142,10 @@ fn default_max_redirects() -> usize {
     5
 }
 
+fn default_enabled() -> bool {
+    true
+}
+
 impl Default for TransportConfig {
     fn default() -> Self {
         Self {
@@ -147,6 +154,7 @@ impl Default for TransportConfig {
             tls_verify: true,
             user_agent: default_user_agent(),
             max_redirects: default_max_redirects(),
+            allow_insecure_tls: false,
         }
     }
 }
@@ -159,7 +167,7 @@ pub struct ProviderEntry {
     pub base_url: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
-    #[serde(default)]
+    #[serde(default = "default_enabled")]
     pub enabled: bool,
 }
 
@@ -189,7 +197,7 @@ pub struct StorageConfig {
     /// Directory for non-secret runtime state.
     #[serde(default)]
     pub data_dir: Option<PathBuf>,
-    /// Directory for encrypted / platform-protected secrets.
+    /// Directory for permission-protected secret files; contents are not encrypted by this store.
     #[serde(default)]
     pub secrets_dir: Option<PathBuf>,
 }
@@ -374,6 +382,51 @@ impl AppConfig {
             }
         }
         Ok(())
+    
+        if self.transport.connect_timeout_ms == 0 {
+            return Err(ConfigError::Invalid("connect_timeout_ms must be greater than zero".into()));
+        }
+        if !self.transport.tls_verify && !self.transport.allow_insecure_tls {
+            return Err(ConfigError::Invalid("tls_verify=false requires allow_insecure_tls=true".into()));
+        }
+        if !is_loopback_bind(&self.server.bind) && self.server.api_key.as_deref().unwrap_or("").is_empty() {
+            return Err(ConfigError::Invalid("api_key is required when binding to a non-loopback address".into()));
+        }
+        let supported = ["mock", "echo", "http", "http_json"];
+        let mut providers = std::collections::HashSet::new();
+        for provider in &self.providers {
+            if provider.name.trim().is_empty() {
+                return Err(ConfigError::Invalid("provider name must not be empty".into()));
+            }
+            if !supported.contains(&provider.kind.as_str()) {
+                return Err(ConfigError::Invalid(format!("unsupported provider kind: {}", provider.kind)));
+            }
+            if !providers.insert(provider.name.as_str()) {
+                return Err(ConfigError::Invalid(format!("duplicate provider: {}", provider.name)));
+            }
+            if provider.enabled && matches!(provider.kind.as_str(), "http" | "http_json") {
+                let raw = provider.base_url.as_deref().ok_or_else(|| ConfigError::Invalid(format!("provider {} requires base_url", provider.name)))?;
+                let parsed = url::Url::parse(raw).map_err(|_| ConfigError::Invalid(format!("invalid base_url for provider {}", provider.name)))?;
+                if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {
+                    return Err(ConfigError::Invalid(format!("base_url for provider {} must use http/https and include a host", provider.name)));
+                }
+            }
+        }
+        let mut models = std::collections::HashSet::new();
+        for model in &self.models {
+            if !models.insert(model.id.as_str()) {
+                return Err(ConfigError::Invalid(format!("duplicate model id: {}", model.id)));
+            }
+            if !providers.contains(model.provider.as_str()) {
+                return Err(ConfigError::Invalid(format!("model {} references unknown provider {}", model.id, model.provider)));
+            }
+            if let Some(provider) = self.providers.iter().find(|p| p.name == model.provider) {
+                if !provider.enabled {
+                    return Err(ConfigError::Invalid(format!("model {} references disabled provider {}", model.id, model.provider)));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn provider(&self, name: &str) -> Option<&ProviderEntry> {
@@ -475,4 +528,10 @@ mod tests {
         let cfg = AppConfig::load(Some(&path)).unwrap();
         assert_eq!(cfg.server.port, 8111);
     }
+}
+
+
+fn is_loopback_bind(bind: &str) -> bool {
+    bind.eq_ignore_ascii_case("localhost")
+        || bind.parse::<std::net::IpAddr>().map(|ip| ip.is_loopback()).unwrap_or(false)
 }

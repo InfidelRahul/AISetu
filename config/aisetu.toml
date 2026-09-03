@@ -11,6 +11,7 @@ format = "pretty"
 timeout_ms = 60000
 connect_timeout_ms = 10000
 tls_verify = true
+allow_insecure_tls = false
 max_redirects = 5
 
 [limits]

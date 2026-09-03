@@ -14,13 +14,13 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
 authors = ["AISetu Contributors"]
 description = "AISetu — a provider-independent AI conversation bridge"
 rust-version = "1.75"
-repository = "https://github.com/aisetu/aisetu"
+repository = "https://github.com/InfidelRahul/AISetu"
 
 [workspace.dependencies]
 aisetu-core = { path = "crates/aisetu-core" }

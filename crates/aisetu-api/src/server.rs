@@ -11,7 +11,7 @@ use axum::{
 use tokio::net::TcpListener;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
@@ -61,12 +61,7 @@ pub fn router(state: AppState) -> Router {
                 )
             }),
         )
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(CorsLayer::new())
         .with_state(state)
 }
 

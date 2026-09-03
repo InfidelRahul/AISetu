@@ -16,7 +16,7 @@ impl RequestId {
 
     pub fn from_raw(raw: impl Into<String>) -> Self {
         let s = raw.into();
-        if s.is_empty() {
+        if s.is_empty() || s.len() > 128 || !s.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b)) {
             Self::new()
         } else {
             Self(s)
@@ -26,6 +26,19 @@ impl RequestId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_raw_falls_back() {
+        assert!(RequestId::from_raw("").as_str().starts_with("req_"));
+        assert!(RequestId::from_raw("hello world").as_str().starts_with("req_"));
+        assert!(RequestId::from_raw("x\nheader").as_str().starts_with("req_"));
+        assert!(RequestId::from_raw("x".repeat(129)).as_str().starts_with("req_"));
+    }
+}
 }
 
 impl Default for RequestId {

@@ -138,10 +138,13 @@ impl Provider for HttpJsonProvider {
                 Ok::<Value, aisetu_core::SetuError>(json!({"text": http_resp.text().unwrap_or("")}))
             })?;
 
-            let inbound = ProviderRepresentation::new("mock", payload);
+            let inbound = ProviderRepresentation::new("http_json", payload);
             let mut response = match self.translator.translate_response(&inbound, &ctx) {
                 Ok(r) => r,
-                Err(_) => self.extractor.extract(&inbound).await?,
+                Err(err) if err.kind == aisetu_core::ErrorKind::ParseFailure => {
+                    self.extractor.extract(&inbound).await?
+                }
+                Err(err) => return Err(err),
             };
             response.provider = Some(self.id.as_str().to_string());
             response.model = ctx.model.clone();
