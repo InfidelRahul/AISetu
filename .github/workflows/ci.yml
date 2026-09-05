@@ -1,67 +1,91 @@
-name: ci
+name: CI Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [ "main", "master" ]
   pull_request:
+    branches: [ "main", "master" ]
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: "-Dwarnings" # Fails the build if there are ANY compiler warnings
 
 jobs:
-  check:
-    name: fmt-clippy-test
+  # JOB 1: Linting & Formatting
+  lint:
+    name: Format & Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.75.0
           components: rustfmt, clippy
+          
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace --all-targets
+      
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+        
+      - name: Run Clippy (Linter)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-  release-matrix:
-    name: release-${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: macos-latest
-            target: x86_64-apple-darwin
+  # JOB 2: Unit & Integration Tests
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          toolchain: 1.75.0
+          
       - uses: Swatinem/rust-cache@v2
+      
+      - name: Run Tests
+        run: cargo test --workspace --all-targets
+
+  # JOB 3: Build Release Binary (Only runs if lint & test pass)
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          key: ${{ matrix.target }}
-      - name: Install aarch64 linux linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-      - name: Build release
-        run: cargo build --release --locked --target ${{ matrix.target }} -p aisetu
-      - name: Upload artifact
+          toolchain: 1.75.0
+          
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Build Release Binary
+        run: cargo build --release -p aisetu
+        
+      - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aisetu-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/aisetu
-            target/${{ matrix.target }}/release/aisetu.exe
+          name: aisetu-linux-x86_64
+          path: target/release/aisetu
+          retention-days: 1
+
+  # JOB 4: Security Audit
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.75.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Run Security Audit
+        run: cargo audit
